@@ -1,7 +1,6 @@
 import streamlit as st
 import calendar
 import datetime
-import pyperclip
 
 def easter_date(year):
     """Calculate Easter date for a given year using the algorithm"""
