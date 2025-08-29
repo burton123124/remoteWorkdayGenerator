@@ -1,0 +1,230 @@
+import tkinter as tk
+from tkinter import ttk, scrolledtext
+import calendar
+import datetime
+import pyperclip
+
+class WorkingDaysGenerator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Generator Dni Roboczych")
+        self.root.geometry("520x650")
+        self.root.configure(bg='#f0f0f0')
+        
+        # Configure style for early Apple look
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Configure colors and fonts for early Apple aesthetic
+        style.configure('Title.TLabel', font=('Helvetica', 16, 'normal'), 
+                       background='#f0f0f0', foreground='#333333')
+        style.configure('Heading.TLabel', font=('Helvetica', 11, 'normal'), 
+                       background='#f0f0f0', foreground='#666666')
+        style.configure('Apple.TCheckbutton', font=('Helvetica', 10), 
+                       background='#f0f0f0', focuscolor='none')
+        style.configure('Apple.TFrame', background='#f0f0f0')
+        
+        # Main frame with Apple-style padding and background
+        main_frame = ttk.Frame(root, style='Apple.TFrame', padding="30")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Title with clean Apple typography
+        title_label = ttk.Label(main_frame, text="Generator Dni Roboczych", style='Title.TLabel')
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 30))
+        
+        # Year selection
+        ttk.Label(main_frame, text="Wybierz lata:", style='Heading.TLabel').grid(row=1, column=0, sticky=tk.W, pady=(0, 10))
+        self.year_frame = ttk.Frame(main_frame, style='Apple.TFrame')
+        self.year_frame.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(0, 25))
+        
+        # Get current date and calculate next 2 months
+        today = datetime.date.today()
+        current_year = today.year
+        current_month = today.month
+        
+        # Calculate next 2 months (current +1 and +2)
+        next_months = []
+        for i in range(1, 3):  # Changed from range(2) to range(1, 3)
+            month = current_month + i
+            year = current_year
+            if month > 12:
+                month -= 12
+                year += 1
+            next_months.append((year, month))
+        
+        # Get unique years from the next 2 months
+        years = sorted(list(set([year for year, month in next_months])))
+        
+        self.year_vars = {}
+        for i, year in enumerate(years):
+            var = tk.BooleanVar()
+            # Set default to True if this year contains one of the next 2 months
+            var.set(True)
+            var.trace_add('write', self.on_selection_change)
+            self.year_vars[year] = var
+            cb = ttk.Checkbutton(self.year_frame, text=str(year), variable=var, style='Apple.TCheckbutton')
+            cb.grid(row=0, column=i, padx=(0, 20))
+        
+        # Weekday selection
+        ttk.Label(main_frame, text="Wybierz dni tygodnia:", style='Heading.TLabel').grid(row=3, column=0, sticky=tk.W, pady=(0, 10))
+        
+        self.weekday_frame = ttk.Frame(main_frame, style='Apple.TFrame')
+        self.weekday_frame.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(0, 25))
+        
+        self.weekday_vars = {}
+        weekdays = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek']
+        
+        for i, weekday in enumerate(weekdays):
+            var = tk.BooleanVar()
+            var.set(i == 0)  # Default only Monday selected (i == 0 is Monday)
+            var.trace_add('write', self.on_selection_change)
+            self.weekday_vars[i] = var  # Monday = 0, Friday = 4
+            cb = ttk.Checkbutton(self.weekday_frame, text=weekday, variable=var, style='Apple.TCheckbutton')
+            cb.grid(row=0, column=i, padx=(0, 15))
+        
+        # Month selection
+        ttk.Label(main_frame, text="Wybierz miesiące:", style='Heading.TLabel').grid(row=5, column=0, sticky=tk.W, pady=(0, 10))
+        
+        # Select All / Deselect All buttons with Apple styling
+        button_frame = ttk.Frame(main_frame, style='Apple.TFrame')
+        button_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=(0, 15))
+        
+        select_all_btn = tk.Button(button_frame, text="Zaznacz wszystkie", 
+                                  command=self.select_all_months,
+                                  font=('Helvetica', 9), bg='#e8e8e8', fg='#333333',
+                                  relief='flat', padx=12, pady=4, cursor='hand2')
+        select_all_btn.grid(row=0, column=0, padx=(0, 8))
+        
+        deselect_all_btn = tk.Button(button_frame, text="Odznacz wszystkie", 
+                                    command=self.deselect_all_months,
+                                    font=('Helvetica', 9), bg='#e8e8e8', fg='#333333',
+                                    relief='flat', padx=12, pady=4, cursor='hand2')
+        deselect_all_btn.grid(row=0, column=1)
+        
+        # Month checkboxes
+        self.month_frame = ttk.Frame(main_frame, style='Apple.TFrame')
+        self.month_frame.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=(0, 25))
+        
+        self.month_vars = {}
+        months = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+                  'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień']
+        
+        # Get the months from our next_months calculation
+        next_month_numbers = [month for year, month in next_months]
+        
+        for i, month in enumerate(months):
+            var = tk.BooleanVar()
+            # Set default to True only for the next 2 months
+            var.set((i+1) in next_month_numbers)
+            var.trace_add('write', self.on_selection_change)
+            self.month_vars[i+1] = var
+            cb = ttk.Checkbutton(self.month_frame, text=month, variable=var, style='Apple.TCheckbutton')
+            cb.grid(row=i//3, column=i%3, sticky=tk.W, padx=(0, 20), pady=3)
+        
+        # Output area
+        ttk.Label(main_frame, text="Wygenerowane dni robocze:", style='Heading.TLabel').grid(row=8, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+        
+        # Custom text widget with Apple styling
+        text_frame = tk.Frame(main_frame, bg='#ffffff', relief='solid', bd=1)
+        text_frame.grid(row=9, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
+        
+        self.output_text = tk.Text(text_frame, width=60, height=15, 
+                                  font=('Monaco', 10), bg='#ffffff', fg='#333333',
+                                  relief='flat', padx=10, pady=8, wrap='none')
+        scrollbar = tk.Scrollbar(text_frame, command=self.output_text.yview)
+        self.output_text.configure(yscrollcommand=scrollbar.set)
+        
+        self.output_text.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        
+        # Copy to clipboard button with Apple styling
+        copy_btn = tk.Button(main_frame, text="Skopiuj do schowka", 
+                            command=self.copy_to_clipboard,
+                            font=('Helvetica', 10, 'bold'), bg='#4a90e2', fg='white',
+                            relief='flat', padx=20, pady=8, cursor='hand2')
+        copy_btn.grid(row=10, column=0, columnspan=2, pady=(0, 10))
+        
+        # Configure grid weights
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(9, weight=1)
+        
+        # Generate working days with initial defaults
+        self.generate_working_days()
+    
+    def select_all_months(self):
+        for var in self.month_vars.values():
+            var.set(True)
+    
+    def deselect_all_months(self):
+        for var in self.month_vars.values():
+            var.set(False)
+    
+    def on_selection_change(self, *args):
+        self.generate_working_days()
+    
+    def is_working_day(self, date):
+        # Check if this weekday is selected by the user
+        weekday = date.weekday()  # Monday = 0, Sunday = 6
+        if weekday < 5:  # Only check Monday-Friday
+            return self.weekday_vars[weekday].get()
+        return False  # Weekend days are never working days
+    
+    def generate_working_days(self):
+        # Get selected years
+        selected_years = [year for year, var in self.year_vars.items() if var.get()]
+        if not selected_years:
+            self.output_text.delete(1.0, tk.END)
+            return
+        
+        # Get selected months
+        selected_months = [month for month, var in self.month_vars.items() if var.get()]
+        if not selected_months:
+            self.output_text.delete(1.0, tk.END)
+            return
+        
+        # Generate working days
+        working_days = []
+        
+        for year in sorted(selected_years):
+            for month in sorted(selected_months):
+                # Get all days in the month
+                days_in_month = calendar.monthrange(year, month)[1]
+                
+                for day in range(1, days_in_month + 1):
+                    date = datetime.date(year, month, day)
+                    if self.is_working_day(date):
+                        working_days.append(date.strftime("%d-%m-%Y"))
+        
+        # Display results
+        self.output_text.delete(1.0, tk.END)
+        if working_days:
+            output = "\n".join(working_days)
+            self.output_text.insert(1.0, output)
+    
+    def copy_to_clipboard(self):
+        content = self.output_text.get(1.0, tk.END).strip()
+        if content:
+            pyperclip.copy(content)
+            # Visual feedback without popup - briefly change button color
+            self.show_copy_feedback()
+    
+    def show_copy_feedback(self):
+        # Find the copy button and change its appearance temporarily
+        for widget in self.root.winfo_children():
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Button) and "Skopiuj" in child.cget("text"):
+                    original_bg = child.cget("bg")
+                    original_text = child.cget("text")
+                    child.configure(bg="#5cb85c", text="Skopiowane!")
+                    self.root.after(1500, lambda: child.configure(bg=original_bg, text=original_text))
+                    break
+
+def main():
+    root = tk.Tk()
+    app = WorkingDaysGenerator(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
